@@ -1,0 +1,503 @@
+---
+title: "Mapping and counting"
+author: "Anna Protasio"
+date: "19/03/2020"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+# Description
+
+
+Describes the methods used for mapping reads to refence genome, counting reads over gene features. Contains the environment.yml files for setting up correct Conda environments to reproduce the results. 
+
+
+
+# QUESTION:
+
+From Norbert: 
+
+The experiment was simple: I knocked down either B2M (CTR), RNF145, ADIPOR2, or RNF145 + ADIPOR2 and exposed these cells to low levels of palmitic acid for 20h. This was done in biological triplicate (see excel sheet for details). I hope the excel spreadsheet is self-explanatory - if not, pls let me know.
+
+We would now like to see if there are any differences in the expression profiles between the 4 different genetic backgrounds. The gCTR group is our control condition, to which the remaining 3 groups need to be compared.
+
+I am expecting very few significant differences, but if there are any, it would be good to know which genes/gene families are differentially regulated.
+
+
+## WORK:
+
+Directory structure:
+
+```
+working dir: 
+<hidden>
+
+ - data
+|
+ - meta
+|
+ - ref
+|
+ - annotation    
+```
+
+### Reference, annotation sourcing.
+
+
+```
+## fetch annotation
+cd annotation
+
+wget ftp://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_33/gencode.v33.basic.annotation.gtf.gz
+
+source activate other_cgat
+
+zcat gencode.v33.basic.annotation.gtf.gz | cgat gtf2gtf --method=filter --filter-method=proteincoding |  cgat gtf2gtf --method=filter --filter-method=representative-transcript > gencode.v33.basic.annotation.proteincoding_representative-transcript.gtf
+
+## fetch hisat2 index
+cd ../ref
+
+wget https://cloud.biohpc.swmed.edu/index.php/s/grch38/download
+
+mv download grch38.tar.gz
+
+source activate mapping
+
+conda update -n mapping --all #update all software
+
+## return to work dir
+cd ..
+```
+
+### Mapping and counting
+
+Snakefile:
+```
+from os.path import join
+
+# Globals ---------------------------------------------------------------------
+
+#Full path to a folder that holds all of your FASTQ files.
+FASTQ_DIR = 'data'
+
+#Path to folder with annotation files (for featureCounts)
+ANNOT_DIR = 'annotation'
+
+# A Snakemake regular expression matching the forward mate FASTQ files.
+ANNOT_FILES, = glob_wildcards(join(ANNOT_DIR, '{file,gencode[^/]+}.gtf'))
+
+
+SAMPLES, = glob_wildcards(join(FASTQ_DIR, '{sample,SLX-\d+.[^/]+}.s_7.r_1.fq.gz'))
+#SAMPLES, = glob_wildcards(join(FASTQ_DIR, '{sample,SLX-\d+.[^/]+}.fq.gz'))
+
+# Patterns for the 1st mate and the 2nd mate using the 'sample' wildcard.
+PATTERN_R1 = '{sample}.s_7.r_1.fq.gz'
+# PATTERN_R2 = '{sample}.s_4.r_1.fq.gz'
+
+#PATTERN_R1 = '{sample}.fq.gz'
+PATTERN_ANNOT = '{file}.gtf'
+
+# Create out and err directories ---------------------------------------------
+def createFolder(directory):
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+    except OSError:
+        print ('Error: Creating directory. ' +  directory)
+        
+createFolder('./out/')
+createFolder('./err/')
+
+# Rules -----------------------------------------------------------------------
+
+rule all:
+    input:
+        expand('hisat/{sample}_sorted.bam.bai', sample=SAMPLES),
+        expand('featurecounts/{file}.featurecount.o', file=ANNOT_FILES),
+
+rule hisat2_map:
+    input:
+        r1 = join(FASTQ_DIR, PATTERN_R1),
+        # r2 = join(FASTQ_DIR, PATTERN_R2)
+    output:
+        temp('hisat/{sample}.sam')
+    log:
+        'logs/{sample}.log'
+    shell:
+        'hisat2 --threads 8 --time --no-mixed --no-discordant -x ref/grch38/genome -U {input.r1} -S {output} &> {log}'
+
+rule sam2bam:
+    input:
+        'hisat/{sample}.sam'
+    output:
+        temp('hisat/{sample}.bam')
+    log:
+        "logs/sam2bam/{sample}.log"
+    shell:
+        'samtools view -b {input} -o {output} '
+
+rule samtools_sort:
+    input:
+        "hisat/{sample}.bam"
+    output:
+        "hisat/{sample}_sorted.bam"
+    log:
+        "logs/samtools_sort/{sample}.log"
+    shell:
+        "samtools sort -O bam {input} > {output} "
+
+rule samtools_index:
+    input:
+        "hisat/{sample}_sorted.bam"
+    output:
+        "hisat/{sample}_sorted.bam.bai"
+    log:
+        "logs/samtools_index/{sample}.log"
+    shell:
+        "samtools index {input}"
+
+rule featurecounts_genes:
+    input:
+        bam=expand('hisat/{sample}_sorted.bam', sample=SAMPLES),
+        annotation = join(ANNOT_DIR, PATTERN_ANNOT)
+    output:
+        "featurecounts/{file}.featurecount.o"
+    log:
+        "logs/featurecounts/{file}.featurecount.log"
+    shell:
+        "featureCounts --primary --fraction -t exon -g gene_id -a {input.annotation} -o {output} {input.bam} &> {log}"
+```
+
+cluster:
+
+```
+{
+    "__default__" :
+    {
+        "queue"     : "normal",
+        "nCPUs"     : "3",
+        "memory"    : 3000,
+        "resources" : "\"select[mem>3000] rusage[mem=3000] span[hosts=1]\"",
+        "name"      : "JOBNAME.{rule}.{wildcards}",
+        "output"    : "out/{rule}.{wildcards}.out",
+        "error"     : "err/{rule}.{wildcards}.err",
+        "tCPU"      : "99999"
+    },
+    "hisat2_map" :
+    {
+        "nCPUs"     : "8",
+        "memory"    : 5000,
+        "resources" : "\"select[mem>5000] rusage[mem=5000] span[hosts=1]\"",
+    },
+    "featurecounts_genes" :
+    {
+        "memory"    : 500,
+        "resources" : "\"select[mem>500] rusage[mem=500] span[hosts=1]\"",
+    },
+    "samtools_index" :
+    {
+        "memory"    : 500,
+        "resources" : "\"select[mem>500] rusage[mem=500] span[hosts=1]\"",
+    },
+}
+```
+
+call:
+
+```
+snakemake --jobs 1000 --cluster-config cluster.json --cluster "bsub -q {cluster.queue} -n{cluster.nCPUs} -R {cluster.resources} -M{cluster.memory} -J {cluster.name} -o {cluster.output} -e {cluster.error} " -s Snakefile
+```
+
+### Conda environments
+
+mapping.yml 
+```
+name: mapping
+channels:
+  - bioconda
+  - r
+  - defaults
+  - conda-forge
+dependencies:
+  - _libgcc_mutex=0.1=main
+  - aioeasywebdav=2.2.0=py36_0
+  - aiohttp=3.5.4=py36h7b6447c_0
+  - appdirs=1.4.3=py36h28b3542_0
+  - asn1crypto=0.24.0=py36_0
+  - async-timeout=3.0.1=py36_0
+  - attrs=18.2.0=py36h28b3542_0
+  - bambamc=0.0.50=ha92aebf_2
+  - bcftools=1.9=ha228f0b_3
+  - bcrypt=3.1.6=py36h7b6447c_0
+  - bedops=2.4.36=h6bb024c_1
+  - bedtools=2.27.1=he860b03_3
+  - blas=1.0=mkl
+  - boto3=1.9.82=py_0
+  - botocore=1.12.82=py_0
+  - bowtie=1.2.3=py36hc9558a2_0
+  - bowtie2=2.3.5=py36he860b03_0
+  - bwa=0.7.17=hed695b0_6
+  - bzip2=1.0.6=h14c3975_5
+  - ca-certificates=2020.1.1=0
+  - cachetools=2.1.0=py_0
+  - cairo=1.14.12=h8948797_3
+  - certifi=2019.11.28=py36_0
+  - cffi=1.12.1=py36h2e261b9_0
+  - chardet=3.0.4=py36_1
+  - configargparse=0.14.0=py36_0
+  - cryptography=2.5=py36h1ba5d50_0
+  - curl=7.64.0=h646f8bb_2
+  - cycler=0.10.0=py36_0
+  - datrie=0.7.1=py36h7b6447c_1
+  - dbus=1.13.6=h746ee38_0
+  - decorator=4.3.2=py36_0
+  - deeptools=3.2.1=py_0
+  - deeptoolsintervals=0.1.7=py36h14c3975_2
+  - docutils=0.14=py36_0
+  - dropbox=9.3.0=py36_0
+  - expat=2.2.6=he6710b0_0
+  - filechunkio=1.6=py36_0
+  - fontconfig=2.13.0=h9420a91_0
+  - freetype=2.9.1=h8a8886c_1
+  - fribidi=1.0.5=h7b6447c_0
+  - ftputil=3.2=py36_0
+  - gitdb2=2.0.5=py36_0
+  - gitpython=2.1.11=py36_0
+  - glib=2.56.2=hd408876_0
+  - google-api-core=1.8.0=py36_0
+  - google-auth=1.2.1=py_0
+  - google-cloud-core=0.29.1=py_0
+  - google-cloud-storage=1.14.0=py_0
+  - google-resumable-media=0.3.2=py_0
+  - googleapis-common-protos=1.5.8=py_0
+  - graphite2=1.3.13=h23475e2_0
+  - graphviz=2.40.1=h21bd128_2
+  - gst-plugins-base=1.14.0=hbbd80ab_1
+  - gstreamer=1.14.0=hb453b48_1
+  - harfbuzz=1.8.8=hffaf4a1_0
+  - hisat2=2.1.0=py36h2d50403_1
+  - htslib=1.9=ha228f0b_7
+  - icu=58.2=h9c2bf20_1
+  - idna=2.8=py36_0
+  - idna_ssl=1.1.0=py36_0
+  - intel-openmp=2019.1=144
+  - ipython_genutils=0.2.0=py36_0
+  - jinja2=2.10=py36_0
+  - jmespath=0.9.3=py36_0
+  - jpeg=9b=h024ee3a_2
+  - jsonschema=2.6.0=py36_0
+  - jupyter_core=4.4.0=py36_0
+  - kiwisolver=1.1.0=py36he6710b0_0
+  - krb5=1.16.3=h05b26f9_1001
+  - libcurl=7.64.0=h541490c_2
+  - libdeflate=1.0=h14c3975_1
+  - libedit=3.1.20181209=hc058e9b_0
+  - libffi=3.2.1=hd88cf55_4
+  - libgcc=7.2.0=h69d50b8_2
+  - libgcc-ng=8.2.0=hdf63c60_1
+  - libgfortran-ng=7.3.0=hdf63c60_0
+  - libpng=1.6.36=hbc83047_0
+  - libprotobuf=3.6.1=hd408876_0
+  - libsodium=1.0.16=h1bed415_0
+  - libssh2=1.8.0=h1ba5d50_4
+  - libstdcxx-ng=8.2.0=hdf63c60_1
+  - libtiff=4.0.10=h2733197_2
+  - libuuid=1.0.3=h1bed415_2
+  - libxcb=1.13=h1bed415_1
+  - libxml2=2.9.9=he19cac6_0
+  - markupsafe=1.1.1=py36h7b6447c_0
+  - matplotlib=3.0.3=py36h5429711_0
+  - mkl=2019.1=144
+  - mkl_fft=1.0.10=py36ha843d7b_0
+  - mkl_random=1.0.2=py36hd81dba3_0
+  - multidict=4.5.2=py36h7b6447c_0
+  - nbformat=4.4.0=py36_0
+  - ncurses=6.1=he6710b0_1
+  - networkx=2.2=py36_1
+  - numpy=1.16.2=py36h7e9f1db_0
+  - numpy-base=1.16.2=py36hde5b4d6_0
+  - openssl=1.1.1d=h7b6447c_4
+  - pandas=0.24.1=py36he6710b0_0
+  - pango=1.42.4=h049681c_0
+  - paramiko=2.4.2=py36_0
+  - pcre=8.42=h439df22_0
+  - perl=5.26.2=h14c3975_0
+  - pip=19.0.3=py36_0
+  - pixman=0.36.0=h7b6447c_0
+  - plotly=3.8.1=py_0
+  - prettytable=0.7.2=py_2
+  - protobuf=3.6.1=py36he6710b0_0
+  - psutil=5.5.0=py36h7b6447c_0
+  - py2bit=0.3.0=py36h14c3975_2
+  - pyasn1=0.4.5=py_0
+  - pyasn1-modules=0.0.5=py36_0
+  - pybigwig=0.3.13=py36h5295baf_2
+  - pycparser=2.19=py36_0
+  - pygraphviz=1.3.1=py36_0
+  - pynacl=1.3.0=py36h7b6447c_0
+  - pyopenssl=19.0.0=py36_0
+  - pyparsing=2.4.0=py_0
+  - pyqt=5.9.2=py36h05f1152_2
+  - pysam=0.15.2=py36hb06f55c_2
+  - pysftp=0.2.9=py36_0
+  - pysocks=1.6.8=py36_0
+  - python=3.6.8=h0371630_0
+  - python-dateutil=2.8.0=py36_0
+  - python-irodsclient=0.7.0=py_0
+  - pytz=2018.9=py36_0
+  - pyyaml=3.13=py36h14c3975_0
+  - qt=5.9.7=h5867ecd_1
+  - ratelimiter=1.2.0=py36_1000
+  - readline=7.0=h7b6447c_5
+  - requests=2.21.0=py36_0
+  - retrying=1.3.3=py36_2
+  - rsa=3.1.4=py36_0
+  - s3transfer=0.1.13=py36_0
+  - samtools=1.9=h8571acd_10
+  - scipy=1.2.1=py36h7c811a0_0
+  - setuptools=40.8.0=py36_0
+  - sip=4.19.8=py36hf484d3e_0
+  - six=1.12.0=py36_0
+  - smalt=0.7.6=1
+  - smmap2=2.0.5=py36_0
+  - snakemake=5.4.2=0
+  - snakemake-minimal=5.4.2=py_1
+  - sortmerna=2.1b=he860b03_4
+  - sqlite=3.26.0=h7b6447c_0
+  - subread=1.6.3=h84994c4_1
+  - tbb=2020.0=hfd86e86_0
+  - tk=8.6.9=h84994c4_1000
+  - tornado=6.0.2=py36h7b6447c_0
+  - traitlets=4.3.2=py36_0
+  - urllib3=1.24.1=py36_0
+  - wheel=0.33.1=py36_0
+  - wrapt=1.11.1=py36h7b6447c_0
+  - xmlrunner=1.7.7=py_0
+  - xz=5.2.4=h14c3975_4
+  - yaml=0.1.7=had09818_2
+  - yarl=1.3.0=py36h7b6447c_0
+  - zlib=1.2.11=h7b6447c_3
+  - zstd=1.3.7=h0b5b093_0
+  - pip:
+    - setuptools-scm==3.5.0
+    - weblogo==3.7.1
+```
+
+other_cgat.yml
+```
+channels:
+  - https://repo.anaconda.com/pkgs/free
+  - bioconda
+  - r
+  - defaults
+  - conda-forge
+dependencies:
+  - _r-mutex=1.0.0=anacondar_1
+  - alignlib-lite=0.3=py35h09b0a5c_1
+  - bcftools=1.6=1
+  - bedtools=2.26.0=0
+  - biopython=1.70=np112py35_1
+  - blas=1.0=mkl
+  - bx-python=0.8.2=py35h355e19c_0
+  - bzip2=1.0.6=h14c3975_5
+  - ca-certificates=2019.1.23=0
+  - cairo=1.14.12=h77bcde2_0
+  - certifi=2018.8.24=py35_1
+  - cgat-scripts=0.3.2=py35h355e19c_2
+  - coreutils=8.25=1
+  - curl=7.61.0=h84994c4_0
+  - cycler=0.10.0=py35hc4d5149_0
+  - cython=0.27.3=py35h6cdc64b_0
+  - dbus=1.13.2=hc3f9b76_0
+  - expat=2.2.6=he6710b0_0
+  - fontconfig=2.12.6=h49f89f6_0
+  - freetype=2.8.1=hfa320df_1
+  - future=0.16.0=py35_2
+  - glib=2.53.6=h5d9569c_2
+  - graphite2=1.3.13=h23475e2_0
+  - grep=2.14=h14c3975_3
+  - gsl=2.2.1=h0c605f7_3
+  - gst-plugins-base=1.12.4=h33fb286_0
+  - gstreamer=1.12.4=hb53b477_0
+  - harfbuzz=1.7.6=hc5b324e_0
+  - htslib=1.6=0
+  - icu=58.2=h9c2bf20_1
+  - intel-openmp=2019.1=144
+  - jpeg=9c=h14c3975_1001
+  - krb5=1.14.6=0
+  - libcurl=7.61.0=h1ad7b7a_0
+  - libedit=3.1.20181209=hc058e9b_0
+  - libffi=3.2.1=hd88cf55_4
+  - libgcc=7.2.0=h69d50b8_2
+  - libgcc-ng=8.2.0=hdf63c60_1
+  - libgfortran=3.0.0=1
+  - libgfortran-ng=7.3.0=hdf63c60_0
+  - libpng=1.6.34=hb9fc6fc_0
+  - libssh2=1.8.0=h9cfc8f7_4
+  - libstdcxx-ng=8.2.0=hdf63c60_1
+  - libtiff=4.0.10=h2733197_2
+  - libuuid=1.0.3=h1bed415_2
+  - libxcb=1.13=h1bed415_1
+  - libxml2=2.9.9=he19cac6_0
+  - lzo=2.10=h49e0be7_2
+  - matplotlib=2.1.2=py35h0e671d2_0
+  - mkl=2018.0.3=1
+  - mmtf-python=1.0.2=py35_0
+  - msgpack-python=0.5.6=py35h6bb024c_1
+  - mysql-connector-c=6.1.6=2
+  - ncurses=6.1=he6710b0_1
+  - numpy=1.12.1=py35hca0bb5e_1
+  - olefile=0.46=py35_0
+  - openssl=1.0.2r=h7b6447c_0
+  - pandas=0.21.1=py35h20b78c2_0
+  - pango=1.40.14=0
+  - pcre=8.42=h439df22_0
+  - pillow=5.1.0=py35h3deb7b8_0
+  - pip=10.0.1=py35_0
+  - pixman=0.36.0=h7b6447c_0
+  - pybedtools=0.7.10=py35ha92aebf_3
+  - pybigwig=0.3.12=py35hdfb72b2_0
+  - pyparsing=2.2.1=py35_0
+  - pyqt=5.6.0=py35h0e41ada_5
+  - pysam=0.13.0=py35_htslib1.6_0
+  - python=3.5.6=hc3d631a_0
+  - python-dateutil=2.7.3=py35_0
+  - python-lzo=1.11=py35_0
+  - pytz=2018.5=py35_0
+  - pyyaml=3.12=py35h46ef4ae_1
+  - qt=5.6.2=hd25b39d_14
+  - r-base=3.4.1=h4fe35fd_8
+  - readline=7.0=h7b6447c_5
+  - reportlab=3.4.0=py35_0
+  - rpy2=2.8.6=py35r3.4.1_2
+  - samtools=1.6=h02bfda8_2
+  - scipy=0.19.1=py35ha8f041b_3
+  - setuptools=40.2.0=py35_0
+  - sip=4.18.1=py35hf484d3e_2
+  - six=1.11.0=py35_1
+  - sqlite=3.26.0=h7b6447c_0
+  - tk=8.6.8=hbc83047_0
+  - tornado=5.1.1=py35h7b6447c_0
+  - ucsc-bedgraphtobigwig=357=1
+  - ucsc-bedtobigbed=357=1
+  - ucsc-wigtobigwig=357=1
+  - wheel=0.31.1=py35_0
+  - xorg-kbproto=1.0.7=h14c3975_1002
+  - xorg-libice=1.0.9=h14c3975_1004
+  - xorg-libsm=1.2.2=h470a237_5
+  - xorg-libx11=1.6.7=h14c3975_1000
+  - xorg-libxdmcp=1.1.2=h14c3975_1007
+  - xorg-libxext=1.3.3=h14c3975_1004
+  - xorg-libxrender=0.9.10=h14c3975_1002
+  - xorg-libxt=1.1.5=h14c3975_1002
+  - xorg-renderproto=0.11.1=h14c3975_1002
+  - xorg-xextproto=7.3.0=h14c3975_1002
+  - xorg-xproto=7.0.31=h14c3975_1007
+  - xz=5.2.4=h14c3975_4
+  - yaml=0.1.7=had09818_2
+  - zlib=1.2.11=h7b6447c_3
+  - zstd=1.3.7=h0b5b093_0
+```

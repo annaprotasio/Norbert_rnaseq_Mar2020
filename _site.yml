@@ -1,0 +1,11 @@
+name: "Norbert's data"
+output_dir: "."
+navbar:
+  #title: "Anna's analysis"
+  left:
+    - text: "Intro"
+      href: index.html
+    - text: "Mapping and counting"
+      href: 00_mapping_and_counting.html
+    - text: "Differential Expression"
+      href: 01_diff_exp.html

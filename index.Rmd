@@ -1,0 +1,18 @@
+---
+title: "Norbert"
+author: "Anna V. Protasio"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: true
+---
+
+## Description of tabs
+
+**Mapping and Counting**
+
+Describes the methods used for mapping reads to refence genome, counting reads over gene features. Contains the environment.yml files for setting up correct Conda environments to reproduce the results. 
+
+**Differential Expression**
+
+As in the title, analysis performed using DESeq2. I've included a video on how to retrieve gene descriptions from BioMart.

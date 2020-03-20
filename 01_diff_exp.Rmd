@@ -1,0 +1,97 @@
+---
+title: "Differencial Expression"
+author: "Anna V. Protasio"
+date: "19/03/2020"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+## Description
+
+As in the title, analysis performed using DESeq2. I've included a video on how to retrieve gene descriptions from BioMart.
+
+```{r setup, include=FALSE, echo=F, message=FALSE}
+rm(list=ls())
+
+require("knitr")
+knitr::opts_chunk$set(echo = F, warning=FALSE, message=FALSE, root.dir = "/Users/ap6/Documents/Google_Drive_avp25/Bioinformatics_coll/Norbert/SLX-19165")
+```
+
+```{r, lib_loading}
+library(DESeq2) 
+library(RColorBrewer)
+library(kableExtra)
+library(ggplot2)
+library(edgeR)
+library(apeglm)
+library(tidyr)
+```
+
+## Quality control.
+
+Plot PCA plot to find out if there are any batch effects. 
+
+```{r load_data}
+load("/Users/ap6/Documents/Google_Drive_avp25/Bioinformatics_coll/Norbert/SLX-19165/RData/01_diff_exp.RData")
+```
+
+
+```{r PCA_condition, fig.width=5, fig.height=5, fig.show='hold'}
+
+plotPCA(vsd, intgroup=c("condition"))
+
+```
+
+
+```{r PCA_replicate, fig.width=5, fig.height=5, fig.show='hold'}
+
+plotPCA(vsd, intgroup=c("replicate"))
+
+```
+
+BEAUUUUUUUUUTIFUL. No batch effect :-)
+
+
+## Differential expression 
+
+This table summarises the total number of up- or down- regulated genes (always in comparison to the control). The adjusted p-value cut-off for significance is 0.05. Notice the massive reduction in the number of genes when the log2FC threshold is increased to 1. 
+
+```{r table1}
+kable(tt, "html") %>%
+  kable_styling(full_width = F)
+```
+
+### Representative MA plots
+
+MA plots show the distribution of each feature across log2FC (on the y-axis) and baseMean or *mean of normalised counts* (on the x-axis), the latter is a measure of *roughly* how high or low expressed a given gene is. Formally, it is the mean of the counts reported in each condition plotted. The more to the right the more expressed a gene is. Note that very low count genes, found at the left of the plot, are broadly dispearsed and hardly any significant hits are reported here. 
+
+```{r plotMA_1, fig.width=3.5, fig.height=3.5, fig.show='hold'}
+
+point.size = 0.8 
+
+DESeq2::plotMA(res$res_RNF145, alpha = 0.05, main = "res_RNF145", cex = point.size)
+
+DESeq2::plotMA(res$res_ADIPOR2, alpha = 0.05, main = "res_ADIPOR2", cex = point.size)
+
+DESeq2::plotMA(res$res_both, alpha = 0.05, main = "res_both", cex = point.size)
+
+```
+
+### Getting the results tables.
+
+Use this links to access the tables of all differentially expressed genes, always filtered for adjuted p-value < 0.05.
+
+[res_RNF145](https://drive.google.com/file/d/1WW6AEi6-CmCDde1NJwxSb9rmPVdFLuh0/view?usp=sharing)
+
+[res_ADIPOR2](https://drive.google.com/file/d/1LjMGYlvH1Vki7U_gf5XTblzF1R42-Et0/view?usp=sharing)
+
+[res_both](https://drive.google.com/file/d/1USJxSOivv17KS9q2DWrNJkm1j1aa3A18/view?usp=sharing)
+
+### Find out what these genes do
+
+Use BioMart. You can see how to here:
+
+[video by Anna on how to use BioMart](https://drive.google.com/file/d/1cm06vw2nJSRJyL63k-04T98p7L6d3zF-/view?usp=sharing)
