@@ -1,0 +1,40 @@
+---
+title: "Mapping and counting"
+author: "Anna Protasio"
+date: "01/04/2020"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+
+```{r setup, include=FALSE, echo=F, message=FALSE}
+rm(list=ls())
+
+require("knitr")
+knitr::opts_chunk$set(echo = F, warning=FALSE, message=FALSE, root.dir = "/Users/ap6/Documents/Google_Drive_avp25/Bioinformatics_coll/Norbert/SLX-19165")
+```
+
+# Description
+
+Use of **mbclusterSeq** to identify gene expression clusters. Click [here](https://cran.r-project.org/web/packages/MBCluster.Seq/index.html) for more info and how to cite.
+
+
+```{r libraries}
+# library(cogena)
+
+```
+
+Rather than taking all genes, only those differentially expressed (adjusted p-value < 0.05) were considered. The number of clustes is defined by the user, in our case, I choose 10 but that can be changed. If clusters have only one gene in them, they are excluded from the analysis. 
+
+There are three plots below, all with the same number of clusters. The difference among them is the number of genes in each cluster. These can be filered based on the probabilit of each gene to belong to that given cluster. Hence, the more stringent we get (highler probability) the lesser number of genes are in each cluster. 
+
+```{r fig1,  fig.cap = "MBCluster.seq output - no filter"}
+knitr::include_graphics("../plots/TimeCourse_plot_10_Clusters_nofilter.png")
+```
+
+
+
+

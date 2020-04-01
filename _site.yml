@@ -9,3 +9,5 @@ navbar:
       href: 00_mapping_and_counting.html
     - text: "Differential Expression"
       href: 01_diff_exp.html
+    - text: "Clustering"
+      href: 02_cluster_analysis.html
