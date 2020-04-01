@@ -1,5 +1,5 @@
 ---
-title: "Mapping and counting"
+title: "Clustering"
 author: "Anna Protasio"
 date: "01/04/2020"
 output:
@@ -22,8 +22,8 @@ knitr::opts_chunk$set(echo = F, warning=FALSE, message=FALSE, root.dir = "/Users
 Use of **mbclusterSeq** to identify gene expression clusters. Click [here](https://cran.r-project.org/web/packages/MBCluster.Seq/index.html) for more info and how to cite.
 
 
-```{r libraries}
-# library(cogena)
+```{r data}
+load("/Users/ap6/Documents/Google_Drive_avp25/Bioinformatics_coll/Norbert/SLX-19165/RData/02_mbclusterSeq.RData")
 
 ```
 
@@ -31,10 +31,70 @@ Rather than taking all genes, only those differentially expressed (adjusted p-va
 
 There are three plots below, all with the same number of clusters. The difference among them is the number of genes in each cluster. These can be filered based on the probabilit of each gene to belong to that given cluster. Hence, the more stringent we get (highler probability) the lesser number of genes are in each cluster. 
 
-```{r fig1,  fig.cap = "MBCluster.seq output - no filter"}
-knitr::include_graphics("../plots/TimeCourse_plot_10_Clusters_nofilter.png")
+```{r fig1, fig.height=5,fig.width=5, fig.cap = "Figure 1. MBCluster.seq output - no filter"}
+par(mfrow=c(3,3))
+    
+for (i in as.numeric(clusters.ord[which(clusters.ord$Freq > 2),]$Var1)) {
+  this_matrix <- mydata$logFC[which(cls$cluster == i),]
+  for (j in 1:nrow(this_matrix)) {
+    par(mar=c(1,2,1,1))
+    g_range <- range(0,this_matrix)
+    if (j == 1)  {
+      plot(this_matrix[j,], type="l",col=rgb(0.1,0.1,0.1,0.2), ylim=g_range, axes=F)
+      axis(1,tick=T,labels=tags,at=c(1:length(tags)),tck=0.05,padj=-4)
+      axis(2,labels=T)
+      } 
+    else {
+      lines(this_matrix[j,],col=rgb(0.1,0.1,0.1,0.2));
+      }
+  }
+  lines(cls$centers[i,],col=rgb(1,0,0,1),lwd=2)
+  title(main=paste("cls",i,"; n=",length(which(cls$cluster == i)),sep=""))
+}
 ```
 
+Same plot but with with higher stringency in the probability of genes belonging to a given cluster. 
 
+```{r fig2, fig.height=5,fig.width=5, fig.cap = "Figure 2. MBCluster.seq output - prob > 0.5"}
+par(mfrow=c(3,3))
 
+for (i in as.numeric(clusters.ord[which(clusters.ord$Freq > 2),]$Var1)) {
+  this_matrix <- mydata$logFC[which(cls$cluster == i & GoodP),]
+  for (j in 1:nrow(this_matrix)) {
+    par(mar=c(1,2,1,1))
+    g_range <- range(0,this_matrix)
+    if (j == 1)  {
+      plot(this_matrix[j,], type="l",col=rgb(0.1,0.1,0.1,0.2), ylim=g_range,axes=F)
+      axis(1,tick=T,labels=tags,at=c(1:length(tags)),tck=0.05,padj=-4)
+      axis(2,labels=T)
+      } else {
+        lines(this_matrix[j,],col=rgb(0.1,0.1,0.1,0.2));
+      }
+    }
+  lines(cls$centers[i,],col=rgb(1,0,0,1),lwd=2)
+  title(main=paste("cls",i,"; n=",length(which(cls$cluster == i & GoodP)),sep=""))
+  }
+```
 
+Same plot but with with **even** higher stringency in the probability of genes belonging to a given cluster. 
+
+```{r fig3, fig.height=5,fig.width=5, fig.cap = "Figure 3. MBCluster.seq output - prob > 0.90"}
+par(mfrow=c(3,3))
+
+for (i in as.numeric(clusters.ord[which(clusters.ord$Freq > 2),]$Var1)) {
+  this_matrix <- mydata$logFC[which(cls$cluster == i & VeryGoodP),]
+  for (j in 1:nrow(this_matrix)) {
+    par(mar=c(1,2,1,1))
+    g_range <- range(0,this_matrix)
+    if (j == 1)  {
+      plot(this_matrix[j,], type="l",col=rgb(0.1,0.1,0.1,0.2), ylim=g_range,axes=F)
+      axis(1,tick=T,labels=tags,at=c(1:length(tags)),tck=0.05,padj=-4)
+      axis(2,labels=T)
+      } else {
+        lines(this_matrix[j,],col=rgb(0.1,0.1,0.1,0.2));
+      }
+    }
+  lines(cls$centers[i,],col=rgb(1,0,0,1),lwd=2)
+  title(main=paste("cls",i,"; n=",length(which(cls$cluster == i & VeryGoodP)),sep=""))
+}
+```
