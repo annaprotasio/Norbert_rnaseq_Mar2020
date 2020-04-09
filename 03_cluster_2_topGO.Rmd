@@ -1,0 +1,31 @@
+---
+title: "Cls2TopGO"
+author: "Anna Protasio"
+date: "09/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Genes from clusters
+
+Gene ids were pulled from each cluster and saved to an XLS file. Gene lists from each individual cluster can be found [here](https://drive.google.com/open?id=1b8_mIJJojNMLXFr6KGw7WBHiqLgp5uny). 
+
+Clusters were also grouped by "shape" and according to NV. There were two groups of clusters:
+- group 1 => clusters 1,4
+- group 2 => clusters 2,3,5,7
+
+Genes in these groups of clusters are also printed to XLS file, same folder as above. 
+
+
+## R TopGO analysis
+
+More information about [TOPGO](https://bioconductor.org/packages/release/bioc/vignettes/topGO/inst/doc/topGO.pdf). 
+
+TopGo analysis has been done on the individual clusters as well as in grouped clusters. Results are in [here](https://drive.google.com/open?id=1b8_mIJJojNMLXFr6KGw7WBHiqLgp5uny)
+
+
+

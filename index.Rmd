@@ -16,3 +16,6 @@ Describes the methods used for mapping reads to refence genome, counting reads o
 **Differential Expression**
 
 As in the title, analysis performed using DESeq2. I've included a video on how to retrieve gene descriptions from BioMart.
+
+**Cluster analysis**
+
