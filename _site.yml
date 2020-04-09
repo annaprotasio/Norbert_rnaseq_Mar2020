@@ -12,4 +12,4 @@ navbar:
     - text: "Clustering"
       href: 02_cluster_analysis.html
     - text: "Clusters.2.TopGO"
-      href: 03_cluster_2_topGO.html
+      href: 03_Cls2TopGO.html

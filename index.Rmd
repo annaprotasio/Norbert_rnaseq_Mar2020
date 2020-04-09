@@ -19,3 +19,8 @@ As in the title, analysis performed using DESeq2. I've included a video on how t
 
 **Cluster analysis**
 
+This is done using MBCluster.seq. Genes are grouped into clusters according to their expression pattern. 
+
+**GO enrichment**
+
+Used TopGO algorithm implemented in R to find out which GO terms are enriched in the different clusters and groups of clusters. Results are presented in XLS. 
